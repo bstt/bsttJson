@@ -476,6 +476,12 @@ namespace bstt
 			return os;
 		}
 
+		void writeToFile(const std::string& fileName, const std::string& tab = "", const std::string& newLine = "") const
+		{
+			std::ofstream ofs(fileName);
+			ofs << toString(tab, newLine);
+		}
+
 		// Getters
 
 		Type getType() const { return type; }
@@ -489,7 +495,7 @@ namespace bstt
 			bool b;
 			double num;
 			JsonArr arr;
-			JsonObj obj;
+			JsonObj obj; // TODO: add a map key to index, and change JsonObj to a map of index to Pair<string, Json>
 		};
 
 		void get() const {}
@@ -498,6 +504,7 @@ namespace bstt
 
 		void checkKeyType(const std::string& key, Type expectedType) const
 		{
+			if (expectedType == Type::Null) return; // allow any type
 			if (type != expectedType)
 				throw std::runtime_error(
 					"Expected " + typeToString(expectedType) + " but got " + typeToString(type) + " for key '" + key + "'");
