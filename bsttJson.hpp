@@ -38,6 +38,7 @@ namespace bstt
 
 	template <typename T> T from_string(const std::string& s);
 
+	template <> inline std::string from_string<std::string>(const std::string& s) { return s; }
 	template <> inline int from_string<int>(const std::string& s) { return std::stoi(s); }
 	template <> inline int64_t from_string<int64_t>(const std::string& s) { return std::stoll(s); }
 	template <> inline size_t from_string<size_t>(const std::string& s) { return std::stoull(s); }
@@ -138,7 +139,7 @@ namespace bstt
 
 		// Move constructor
 
-		Json(Json&& v) noexcept : type(v.type)
+		Json(Json&& v) noexcept : type(v.type), b(false)
 		{
 			switch (v.type)
 			{
@@ -176,6 +177,7 @@ namespace bstt
 			switch (rhs.type)
 			{
 			case Type::Null:
+				b = false;
 				break;
 			case Type::Bool:
 				b = rhs.b;
@@ -234,6 +236,17 @@ namespace bstt
 		{
 			type = Type::String;
 			new (&str) std::string(s_);
+			// replace tabs and newlines with escape sequences
+			size_t pos = 0;
+			while ((pos = str.find_first_of("\t\r\n", pos)) != std::string::npos)
+			{
+				if (str[pos] == '\t') str.replace(pos, 1, "\\t");
+				else if (str[pos] == '\r')
+					str.replace(pos, 1, "\\r");
+				else
+					str.replace(pos, 1, "\\n");
+				pos += 2;
+			}
 			return *this;
 		}
 		Json& operator=(const std::string& s_) { return *this = s_.c_str(); }
@@ -385,13 +398,13 @@ namespace bstt
 			}
 			return it != obj.end();
 		}
-		template <typename T> bool tryGet(const std::string& key, std::map<T, std::string>& value) const
+		template <typename T, typename U> bool tryGet(const std::string& key, std::map<T, U>& value) const
 		{
 			auto it = obj.find(key);
 			if (it != obj.end())
 			{
 				it->second.checkKeyType(key, Type::Object);
-				for (const auto& [key, val] : it->second.obj) value[from_string<T>(key)] = val;
+				for (const auto& [k, val] : it->second.obj) value[from_string<T>(k)] = val;
 			}
 			return it != obj.end();
 		}
