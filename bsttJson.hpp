@@ -335,7 +335,7 @@ namespace bstt
 		template <typename T> operator std::vector<T>() const
 		{
 			std::vector<T> tList;
-			for (const auto& value : arr) tList.push_back(value);
+			for (const auto& value : arr) tList.push_back(fromJson<T>(value));
 			return tList;
 		}
 
@@ -654,7 +654,11 @@ namespace bstt
 				else if (str[pos] == 'e' || str[pos] == 'E')
 					parseExponent(str, pos);
 			}
+#ifdef __cpp_lib_to_chars
 			std::from_chars(str.data() + start, str.data() + pos, value);
+#else
+		value = std::stod(std::string(str.substr(start, pos - start)));
+#endif
 		}
 
 		inline void parseObject(const std::string_view& str, size_t& pos, Json& jsonValue, size_t depth)
