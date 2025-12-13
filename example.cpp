@@ -1,9 +1,8 @@
 #include "./bsttJson.hpp"
 
+#include <iostream>
 #include <string>
 #include <vector>
-
-#include <iostream>
 
 struct Person
 {

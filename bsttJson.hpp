@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <charconv>
 #include <cstdint>
 #include <fstream>
@@ -10,6 +11,15 @@
 #include <vector>
 
 inline std::string to_string(const std::string& s) { return s; }
+
+#define FROM_TO_JSON(Type)                                                                                                       \
+	template <> inline Type fromJson<Type>(const Json& json) { return static_cast<Type>(json); }                                 \
+	template <> inline Json toJson<Type>(const Type& i) { return Json{i}; }
+
+// CastType should be: bool, int, int64_t, size_t, double, std::string
+#define FROM_TO_JSON_CAST(Type, CastType)                                                                                        \
+	template <> inline Type fromJson<Type>(const Json& json) { return static_cast<Type>(static_cast<CastType>(json)); }          \
+	template <> inline Json toJson<Type>(const Type& i) { return Json{static_cast<CastType>(i)}; }
 
 #ifdef USE_BSTT_NAMESPACE
 namespace bstt
@@ -33,7 +43,12 @@ namespace bstt
 		return it->second[tabCount];
 	}
 
+#ifdef SORT_JSON_OBJECT_KEYS
 	using JsonObj = std::map<std::string, struct Json>;
+#else
+using JsonObj = std::vector<std::pair<std::string, struct Json>>;
+#endif
+
 	using JsonArr = std::vector<struct Json>;
 
 	template <typename T> T from_string(const std::string& s);
@@ -44,6 +59,9 @@ namespace bstt
 	template <> inline size_t from_string<size_t>(const std::string& s) { return std::stoull(s); }
 	template <> inline double from_string<double>(const std::string& s) { return std::stod(s); }
 
+	template <> inline char from_string<char>(const std::string& s) { return static_cast<char>(std::stoi(s)); }
+	template <> inline short from_string<short>(const std::string& s) { return static_cast<char>(std::stoi(s)); }
+
 	template <typename T> T fromJson(const Json&);
 
 	template <typename T> Json toJson(const T&);
@@ -52,7 +70,7 @@ namespace bstt
 
 	struct Json
 	{
-		enum class Type
+		enum class Type : uint8_t
 		{
 			Null,
 			Bool,
@@ -368,7 +386,7 @@ namespace bstt
 		template <typename T, typename... Args> void get(const std::string& key, T& value, Args&&... args) const
 		{
 			get(key, value);
-			get(args...);
+			get(std::forward(args)...);
 		}
 
 		// Set
@@ -377,20 +395,42 @@ namespace bstt
 		template <typename T, typename... Args> void set(const std::string& key, const T& value, Args&&... args)
 		{
 			set(key, value);
-			set(args...);
+			set(std::forward(args)...);
 		}
 
 		// Try get
 
+	private:
+		JsonObj::iterator objFind(const std::string& key)
+		{
+#ifdef SORT_JSON_OBJECT_KEYS
+			return obj.find(key);
+#else
+		return std::find_if(
+			obj.begin(), obj.end(), [&key](const std::pair<std::string, Json>& pair) { return pair.first == key; });
+#endif
+		}
+
+		JsonObj::const_iterator objFind(const std::string& key) const
+		{
+#ifdef SORT_JSON_OBJECT_KEYS
+			return obj.find(key);
+#else
+		return std::find_if(
+			obj.begin(), obj.end(), [&key](const std::pair<std::string, Json>& pair) { return pair.first == key; });
+#endif
+		}
+
+	public:
 		template <typename T> bool tryGet(const std::string& key, T& value) const
 		{
-			auto it = obj.find(key);
+			auto it = objFind(key);
 			if (it != obj.end()) value = it->second;
 			return it != obj.end();
 		}
 		bool tryGet(const std::string& key, std::string& value) const
 		{
-			auto it = obj.find(key);
+			auto it = objFind(key);
 			if (it != obj.end())
 			{
 				it->second.checkKeyType(key, Type::String);
@@ -400,7 +440,7 @@ namespace bstt
 		}
 		template <typename T, typename U> bool tryGet(const std::string& key, std::map<T, U>& value) const
 		{
-			auto it = obj.find(key);
+			auto it = objFind(key);
 			if (it != obj.end())
 			{
 				it->second.checkKeyType(key, Type::Object);
@@ -410,7 +450,7 @@ namespace bstt
 		}
 		template <typename T> bool tryGet(const std::string& key, std::vector<T>& value) const
 		{
-			auto it = obj.find(key);
+			auto it = objFind(key);
 			if (it != obj.end())
 			{
 				it->second.checkKeyType(key, Type::Array);
@@ -421,7 +461,7 @@ namespace bstt
 		template <typename T, typename... Args> bool tryGet(const std::string& key, T& value, Args&&... args) const
 		{
 			bool allFound = tryGet(key, value);
-			return tryGet(args...) && allFound;
+			return tryGet(std::forward(args)...) && allFound;
 		}
 
 		// Array functions
@@ -440,21 +480,27 @@ namespace bstt
 
 		const Json& operator[](const std::string& key) const
 		{
-			auto it = obj.find(key);
+			auto it = objFind(key);
 			if (it == obj.end()) throw std::runtime_error("Key not found: '" + key + "'");
 			return it->second;
 		}
 		const Json& operator[](const char* key) const { return (*this)[std::string(key)]; }
 
-		Json& operator[](const std::string& key)
-		{
-			if (type != Type::Object) *this = JsonObj();
-			return obj[key];
-		}
+		Json& operator[](const std::string& key) { return (*this)[key.c_str()]; }
 		Json& operator[](const char* key)
 		{
 			if (type != Type::Object) *this = JsonObj();
+#ifdef SORT_JSON_OBJECT_KEYS
 			return obj[key];
+#else
+		auto it = objFind(key);
+		if (it == obj.end())
+		{
+			obj.emplace_back(key, Json());
+			return obj.back().second;
+		}
+		return it->second;
+#endif
 		}
 
 		// Display
@@ -552,6 +598,16 @@ namespace bstt
 				   << newLine << getTab(tab, currentTabCount) << "]";
 		}
 	};
+
+	// operator overloads
+	FROM_TO_JSON(bool)
+	FROM_TO_JSON(int)
+	FROM_TO_JSON(int64_t)
+	FROM_TO_JSON(size_t)
+	FROM_TO_JSON(double)
+	FROM_TO_JSON(std::string)
+	FROM_TO_JSON_CAST(char, int)
+	FROM_TO_JSON_CAST(short, int)
 
 	namespace detail
 	{
@@ -757,3 +813,5 @@ namespace bstt
 #ifdef USE_BSTT_NAMESPACE
 } // namespace bstt
 #endif
+
+#undef FROM_TO_JSON
