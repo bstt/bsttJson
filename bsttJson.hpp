@@ -467,11 +467,17 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 		// Array functions
 
 		const Json& operator[](size_t index) const { return arr[index]; }
+		// resize the array if needed
 		Json& operator[](size_t index)
 		{
 			if (type != Type::Array) *this = JsonArr();
 			if (arr.size() <= index) arr.resize(index + 1);
 			return arr[index];
+		}
+		template <typename T> void emplace_back(const T& t)
+		{
+			if (type != Type::Array) *this = JsonArr();
+			arr.emplace_back(t);
 		}
 
 		void resize(size_t size) { arr.resize(size); }
@@ -544,6 +550,13 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 		// Getters
 
 		Type getType() const { return type; }
+
+		size_t size() const
+		{
+			if (type == Type::Array) return arr.size();
+			if (type == Type::Object) return obj.size();
+			return 0;
+		}
 
 	private:
 		Type type = Type::Null;

@@ -188,7 +188,8 @@ struct Json
 	// Array functions
 
 	const Json& operator[](size_t index) const { return arr[index]; }
-	Json& operator[](size_t index);
+	Json& operator[](size_t index); // resize the array if needed
+	template <typename T> void emplace_back(const T& t);
 	void resize(size_t size);
 
 	// Object functions
@@ -205,6 +206,7 @@ struct Json
 	// Getters
 
 	Type getType() const;
+	size_t size() const;
 };
 ```
 
