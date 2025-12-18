@@ -272,6 +272,9 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 		{
 			type = Type::Object;
 			new (&obj) JsonObj(obj_);
+#ifndef SORT_JSON_OBJECT_KEYS
+			for (long long i = 0; i < static_cast<long long>(obj.size()); ++i) objKeyToIndexMap[obj[i].first] = i;
+#endif
 			return *this;
 		}
 		Json& operator=(const JsonArr& arr_)
@@ -290,7 +293,11 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 			using namespace std;
 			type = Type::Object;
 			new (&obj) JsonObj();
+#ifdef SORT_JSON_OBJECT_KEYS
 			for (const auto& [key, value] : tuMap) (*this)[to_string(key)] = value;
+#else
+		for (const auto& [key, value] : tuMap) this->obj.emplace_back(to_string(key), value);
+#endif
 			return *this;
 		}
 		template <typename T> Json& operator=(const std::vector<T>& tList)
@@ -323,6 +330,9 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 				break;
 			case Type::Object:
 				new (&obj) JsonObj(std::move(rhs.obj));
+#ifndef SORT_JSON_OBJECT_KEYS
+				this->objKeyToIndexMap = std::move(rhs.objKeyToIndexMap);
+#endif
 				break;
 			case Type::Array:
 				new (&arr) JsonArr(std::move(rhs.arr));
@@ -406,8 +416,9 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 #ifdef SORT_JSON_OBJECT_KEYS
 			return obj.find(key);
 #else
-		return std::find_if(
-			obj.begin(), obj.end(), [&key](const std::pair<std::string, Json>& pair) { return pair.first == key; });
+		auto it = objKeyToIndexMap.find(key);
+		if (it != objKeyToIndexMap.end()) return obj.begin() + it->second;
+		return obj.end();
 #endif
 		}
 
@@ -416,8 +427,9 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 #ifdef SORT_JSON_OBJECT_KEYS
 			return obj.find(key);
 #else
-		return std::find_if(
-			obj.begin(), obj.end(), [&key](const std::pair<std::string, Json>& pair) { return pair.first == key; });
+		auto it = objKeyToIndexMap.find(key);
+		if (it != objKeyToIndexMap.end()) return obj.begin() + it->second;
+		return obj.end();
 #endif
 		}
 
@@ -502,6 +514,7 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 		auto it = objFind(key);
 		if (it == obj.end())
 		{
+			objKeyToIndexMap[key] = static_cast<long long>(obj.size());
 			obj.emplace_back(key, Json());
 			return obj.back().second;
 		}
@@ -567,8 +580,12 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 			bool b;
 			double num;
 			JsonArr arr;
-			JsonObj obj; // TODO: add a map key to index, and change JsonObj to a map of index to Pair<string, Json>
+			JsonObj obj;
 		};
+
+#ifndef SORT_JSON_OBJECT_KEYS
+		std::map<std::string, long long> objKeyToIndexMap;
+#endif
 
 		void get() const {}
 		static bool tryGet() { return true; }
