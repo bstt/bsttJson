@@ -486,10 +486,10 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 			if (arr.size() <= index) arr.resize(index + 1);
 			return arr[index];
 		}
-		template <typename T> void emplace_back(const T& t)
+		template <typename... Args> void emplace_back(Args&&... args)
 		{
 			if (type != Type::Array) *this = JsonArr();
-			arr.emplace_back(t);
+			arr.emplace_back(std::forward(args)...);
 		}
 
 		void resize(size_t size) { arr.resize(size); }
