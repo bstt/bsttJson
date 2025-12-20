@@ -174,6 +174,9 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 				break;
 			case Type::Object:
 				new (&obj) JsonObj(std::move(v.obj));
+#ifndef SORT_JSON_OBJECT_KEYS
+				this->objKeyToIndexMap = std::move(v.objKeyToIndexMap);
+#endif
 				break;
 			case Type::Array:
 				new (&arr) JsonArr(std::move(v.arr));
