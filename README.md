@@ -12,6 +12,8 @@ bsttJson is a **c++ library** that allows you to **read and write json data** wi
 
 Note: This library is not intended to be the fastest or the most powerful, but the easiest to use.
 
+If you want performance take a look at the branch [rapidjson](https://github.com/bstt/bsttJson/tree/rapidjson).
+
 # Installation
 
 ## Header only
