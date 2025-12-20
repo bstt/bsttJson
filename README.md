@@ -1,8 +1,8 @@
-# bsttJson
+# bsttYyjson
 
 # Description
 
-bsttJson is a **c++ library** that allows you to **read and write json data** with an easy way to convert to structured data.
+bsttYyjson is a **c++ library** that allows you to **read and write json data** with an easy way to convert to structured data. It is a wrapper around [yyjson](https://github.com/ibireme/yyjson).
 
 # Features
 
@@ -10,49 +10,43 @@ bsttJson is a **c++ library** that allows you to **read and write json data** wi
 - convert structured data from and to json data
 - easy to use (header only)
 
-Note: This library is not intended to be the fastest or the most powerful, but the easiest to use.
-
-If you want performance take a look at the branch [yyjson](https://github.com/bstt/bsttJson/tree/yyjson).
+Note: This library is both fast and easy to use since it is a wrapper around yyjson.
 
 # Installation
 
 ## Header only
 
-Include the [`bsttJson.hpp`](bsttJson.hpp) anywhere you want to use it.
+Include the [`bsttYyjson.hpp`](bsttYyjson/bsttYyjson.hpp) anywhere you want to use it.
+
+Download the `bsttYyjson` folder using this [download link](https://download-directory.github.io/?url=https%3A%2F%2Fgithub.com%2Fbstt%2FbsttJson%2Ftree%2Fyyjson%2FbsttYyjson).  
+Alternatively, you can download the latest version of `yyjson source files` directly from the [yyjson repository](https://github.com/ibireme/yyjson/tree/master/src) using this [download link](https://download-directory.github.io/?url=https%3A%2F%2Fgithub.com%2Fibireme%2Fyyjson%2Ftree%2Fmaster%2Fsrc).
+
+To use the library, you need to define `IMPORT_YYJSON_IMPL` before including the header to include the implementation:
 
 ```cpp
-#include "bsttJson.hpp"
+#define IMPORT_YYJSON_IMPL
+#include "bsttYyjson/bsttYyjson.hpp"
+#undef IMPORT_YYJSON_IMPL
 ```
-
-### Use of namespace
-
-If you want to use the namespace `bsttJson` you can define `USE_BSTT_NAMESPACE` before including the header.
-
-```cpp
-#define USE_BSTT_NAMESPACE
-#include "bsttJson.hpp"
-```
-
-### Sort the keys
-
-If you want to sort the keys of the objects alphabetically, you can define `SORT_JSON_OBJECT_KEYS` before including the header.
 
 ### Requirements
 
 c++17 or later required for compilation.  
-No external dependencies.
+No external dependencies (yyjson is included in the repository).
 
 # Example
 
 Content of [example.cpp](example.cpp)
 
 ```cpp
-#include "./bsttJson.hpp"
-
 #include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
+
+#define IMPORT_YYJSON_IMPL
+#include "bsttYyjson/bsttYyjson.hpp"
+#undef IMPORT_YYJSON_IMPL
 
 struct Address
 {
@@ -69,207 +63,184 @@ struct Person
 	std::vector<std::string> hobbies;
 };
 
-template <> inline Json toJson<Address>(const Address& address)
+template <> void toJson(MutValueWrapper& value, const Address& a)
 {
-	return JsonObj{{"street", address.street}, {"city", address.city}, {"zipCode", address.zipCode}};
+	value.set("street", a.street, "city", a.city, "zipCode", a.zipCode);
 }
 
-template <> inline Address fromJson<Address>(const Json& json) { return Address{json["street"], json["city"], json["zipCode"]}; }
-
-template <> inline Json toJson<Person>(const Person& person)
+template <> void toJson(MutValueWrapper& value, const Person& p)
 {
-	Json json = JsonObj{{"name", person.name}, {"age", person.age}, {"hobbies", person.hobbies}};
-	if (person.address.has_value()) json["address"] = person.address.value();
-	return json;
+	value.set("name", p.name, "age", p.age, "hobbies", p.hobbies);
+	if (p.address.has_value()) value.set("address", p.address.value());
 }
 
-template <> inline Person fromJson<Person>(const Json& json)
+template <> Address fromJson(const ValueWrapper& doc) { return Address{doc["street"], doc["city"], doc["zipCode"]}; }
+
+template <> Person fromJson(const ValueWrapper& doc)
 {
-	Person person{json["name"], json["age"], {}, json["hobbies"]};
-	// you can also use the method get (cf. below) for type checking
-	// json.get("name", person.name, "age", person.age, "hobbies", person.hobbies);
-	if (json.hasKey("address"))
-	{
-		person.address = Address(json["address"]);
-	}
-	return person;
+	Person res{doc["name"], doc["age"], {}, doc["hobbies"]};
+	if (doc.hasKey("address")) res.address = Address(doc["address"]);
+	return res;
 }
 
 int main()
 {
-	std::string jsonStr = R"(
+	std::string json = R"(
     {
         "name": "Alice",
         "age": 25,
         "hobbies": ["reading", "coding"]
     }
     )";
-	Json json2 = Json::parse(jsonStr);
-	// browse hobbies without converting to Person
-	const JsonArr& hobbies = json2["hobbies"];
-	for (const Json& hobby : hobbies) std::cout << hobby << '\n';
-	// to browse key-value pairs, use JsonObj (i.e. const JsonObj& obj = json2;)
-
-	Person alice = json2; // convert json to Person
-
-	alice.address = Address{"123 Main St", "New York", "10001"};
-
-	Json json = alice; // convert Person to json
-
-	std::cout << json.toString("    ", "\n") << '\n'; // use toString function to format json
-
-	return 0;
+	DocWrapper doc(json);
+	ValueWrapper value = doc;
+	Person p = value;
+	p.address = Address{"123 Main St", "New York", "10001"};
+	MutDocWrapper mutDoc;
+	MutValueWrapper root = mutDoc;
+	toJson(root, p);
+	std::string serialized = mutDoc.toString();
+	std::cout << serialized << "\n";
 }
+
 ```
 
 Output:
 
 ```
-"reading"
-"coding"
-{
-    "name": "Alice",
-    "age": 25,
-    "hobbies": [
-        "reading",
-        "coding"
-    ],
-    "address": {
-        "street": "123 Main St",
-        "city": "New York",
-        "zipCode": "10001"
-    }
-}
+{"name":"Alice","age":25,"hobbies":["reading","coding"],"address":{"street":"123 Main St","city":"New York","zipCode":"10001"}}
 ```
 
 # Usage
 
 _The usage is not exhaustive._
 
+## Reading JSON
+
 ```cpp
-// CastType should be: bool, int, int64_t, size_t, double, std::string
-#define FROM_TO_JSON_CAST(Type, CastType) // basic impl of fromJson<Type> and toJson<Type>
-#ifdef SORT_JSON_OBJECT_KEYS
-	using JsonObj = std::map<std::string, struct Json>;
-#else
-	using JsonObj = std::vector<std::pair<std::string, struct Json>>;
-#endif
-using JsonArr = std::vector<struct Json>;
-template <typename T> T fromJson(const Json&);
-template <typename T> Json toJson(const T&);
-struct Json
-{
-	enum class Type
-	{
-		Null,
-		Bool,
-		Number,
-		String,
-		Array,
-		Object
-	};
+// Parse JSON from string
+DocWrapper doc(jsonString);
 
-	template <typename T> static Json::Type typeToType(const T&);
-	static std::string typeToString(Type type);
+// Access values
+ValueWrapper root = doc;
+ValueWrapper name = root["name"];
+std::string nameStr = name;  // Conversion operator
+int age = root["age"];       // Conversion operator
+std::vector<std::string> hobbies = root["hobbies"];  // Vector conversion
 
-	// Parsing functions
+// Check if key exists
+if (root.hasKey("address")) {
+    // Access nested object
+    Address addr = root["address"];
+}
 
-	static Json parse(const std::string_view& str);
-	static bool tryParse(const std::string_view& str, Json& json);
-	static bool tryParse(const std::string_view& str, Json& json, std::string& error);
-	static Json parseFile(const std::string& fileName);
-	static bool tryParseFile(const std::string& fileName, Json& json);
-	static bool tryParseFile(const std::string& fileName, Json& json, std::string& error);
-
-	// Constructors
-
-	Json(); // default is null
-	Json(const Json& v);
-	template <typename T> Json(const T& v);
-
-	// Converters
-
-	template <typename T> Json& operator=(const T& t);
-	template <typename T> operator T() const;
-
-	operator bool&();
-	operator double&();
-	operator std::string&();
-	operator JsonObj&();
-	operator JsonArr&();
-
-	// Value accessors
-
-	template <typename T, typename... Args> void get(const std::string& key, T& value, Args&&... args) const;
-
-	template <typename T, typename... Args> void set(const std::string& key, const T& value, Args&&... args);
-
-	template <typename T, typename... Args> bool tryGet(const std::string& key, T& value, Args&&... args) const;
-
-	bool hasKey(const std::string& key) const;
-
-	// Array functions
-
-	const Json& back();
-	Json& back();
-	const Json& operator[](size_t index) const;
-	Json& operator[](size_t index); // resize the array if needed
-	template <typename T> void emplace_back(const T& t);
-	void resize(size_t size);
-
-	// Object functions
-
-	const Json& operator[](const std::string& key) const;
-	Json& operator[](const std::string& key);
-
-	// Display functions
-
-	std::string toString(const std::string& tab = "", const std::string& newLine = "") const;
-	friend std::ostream& operator<<(std::ostream& os, const Json& v);
-	std::ostream& display(std::ostream& os, const std::string& tab = "", const std::string& newLine = "", size_t currentTabCount = 0) const;
-
-	// Getters
-
-	Type getType() const;
-	size_t size() const;
-};
+// Access array elements
+ValueWrapper firstHobby = root["hobbies"][0];
 ```
 
-**Note:** you should never manually call `fromJson` or `toJson`.
+## Writing JSON
 
-## Specific usage
+```cpp
+// Create a mutable document
+MutDocWrapper mutDoc;
+MutValueWrapper root = mutDoc;
 
-For basic type like `unsigned char`, you can use the macro `FROM_TO_JSON_CAST` to quickly define the functions `fromJson` and `toJson`.
+// Set object properties
+root.set("name", "Alice", "age", 25);
 
-Content of [unsigned_char_example.cpp](unsigned_char_example.cpp)
+// Add to arrays
+root.asArr().add("item1", "item2", "item3");
 
-```c++
-#include "./bsttJson.hpp"
+// Or add vectors
+std::vector<std::string> hobbies = {"reading", "coding"};
+root.set("hobbies", hobbies);
 
-#include <iostream>
-#include <vector>
+// Convert to string
+std::string json = mutDoc.toString();
+```
 
-FROM_TO_JSON_CAST(unsigned char, int)
+## Custom Types
 
-int main()
+```cpp
+// Implement toJson for writing custom types
+template <> void toJson(MutValueWrapper& value, const MyType& obj)
 {
-	std::vector<unsigned char> ucharList = {'h', 'e', 'l', 'l', 'o'};
-	Json json = ucharList; // DO NOT WRITE: Json json = toJson(ucharList)
-	std::cout << Json(json).toString() << std::endl;
-	// DO NOT WRITE: std::vector<unsigned char> ucharList2 = fromJson<std::vector<unsigned char>>(json);
-	std::vector<unsigned char> ucharList2 = json;
-	for (unsigned char c : ucharList2) std::cout << c;
-	std::cout << std::endl;
-	return 0;
+    value.set("field1", obj.field1, "field2", obj.field2);
+}
+
+// Implement fromJson for reading custom types
+template <> MyType fromJson(const ValueWrapper& doc)
+{
+    return MyType{doc["field1"], doc["field2"]};
 }
 ```
 
-Output:
+## Main API
 
+```cpp
+// Reading JSON
+class DocWrapper
+{
+    DocWrapper(const std::string& data);  // Parse JSON from string
+    operator ValueWrapper() const;
+    std::string toString() const;
+
+    class ValueWrapper
+    {
+        // Conversion operators
+        operator int() const;
+        operator int64_t() const;
+        operator uint64_t() const;
+        operator double() const;
+        operator bool() const;
+        operator std::string() const;
+        template <typename T> operator std::vector<T>() const;
+        template <typename T> operator T() const;  // Uses fromJson<T>
+
+        // Access operators
+        ValueWrapper operator[](const char* key) const;
+        ValueWrapper operator[](size_t index) const;
+        ValueWrapper operator[](int index) const;
+
+        bool hasKey(const char* key) const;
+
+        yyjson_val* val_;  // Direct access to underlying value
+        yyjson_doc* doc_;  // Direct access to underlying document
+    };
+};
+
+// Writing JSON
+class MutDocWrapper
+{
+    MutDocWrapper();  // Create empty document
+    operator MutValueWrapper() const;
+    std::string toString() const;
+
+    class MutValueWrapper
+    {
+        // Add object properties (variadic) (CAREFUL: it will NOT override existing properties)
+        template <typename... Args> void set(Args&&... args);
+
+        // Add array elements (variadic)
+        template <typename... Args> void add(Args&&... args);
+
+        // Add vector to array
+        template <typename T> void addVector(const std::vector<T>& valueList);
+
+        yyjson_mut_val* val_;     // Direct access to underlying value
+        yyjson_mut_doc* mutDoc_;  // Direct access to underlying document
+    };
+};
+
+// Custom type conversion
+template <typename T> T fromJson(const ValueWrapper& doc);
+template <typename T> void toJson(MutValueWrapper& value, const T& obj);
+
+using ValueWrapper = DocWrapper::ValueWrapper;
+using MutValueWrapper = MutDocWrapper::MutValueWrapper;
 ```
-[104, 101, 108, 108, 111]
-hello
-```
+
+**Note:** you should never manually call `fromJson` or `toJson`.
 
 # Licence
 

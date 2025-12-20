@@ -1,9 +1,12 @@
-#include "./bsttJson.hpp"
-
 #include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
+
+
+#define IMPORT_YYJSON_IMPL
+#include "bsttYyjson/bsttYyjson.hpp"
+#undef IMPORT_YYJSON_IMPL
 
 struct Address
 {
@@ -20,54 +23,42 @@ struct Person
 	std::vector<std::string> hobbies;
 };
 
-template <> inline Json toJson<Address>(const Address& address)
+template <> void toJson(MutValueWrapper& value, const Address& a)
 {
-	return JsonObj{{"street", address.street}, {"city", address.city}, {"zipCode", address.zipCode}};
+	value.set("street", a.street, "city", a.city, "zipCode", a.zipCode);
 }
 
-template <> inline Address fromJson<Address>(const Json& json) { return Address{json["street"], json["city"], json["zipCode"]}; }
-
-template <> inline Json toJson<Person>(const Person& person)
+template <> void toJson(MutValueWrapper& value, const Person& p)
 {
-	Json json = JsonObj{{"name", person.name}, {"age", person.age}, {"hobbies", person.hobbies}};
-	if (person.address.has_value()) json["address"] = person.address.value();
-	return json;
+	value.set("name", p.name, "age", p.age, "hobbies", p.hobbies);
+	if (p.address.has_value()) value.set("address", p.address.value());
 }
 
-template <> inline Person fromJson<Person>(const Json& json)
+template <> Address fromJson(const ValueWrapper& doc) { return Address{doc["street"], doc["city"], doc["zipCode"]}; }
+
+template <> Person fromJson(const ValueWrapper& doc)
 {
-	Person person{json["name"], json["age"], {}, json["hobbies"]};
-	// you can also use the method get (cf. below) for type checking
-	// json.get("name", person.name, "age", person.age, "hobbies", person.hobbies);
-	if (json.hasKey("address"))
-	{
-		person.address = Address(json["address"]);
-	}
-	return person;
+	Person res{doc["name"], doc["age"], {}, doc["hobbies"]};
+	if (doc.hasKey("address")) res.address = Address(doc["address"]);
+	return res;
 }
 
 int main()
 {
-	std::string jsonStr = R"(
+	std::string json = R"(
     {
         "name": "Alice",
         "age": 25,
         "hobbies": ["reading", "coding"]
     }
     )";
-	Json json2 = Json::parse(jsonStr);
-	// browse hobbies without converting to Person
-	const JsonArr& hobbies = json2["hobbies"];
-	for (const Json& hobby : hobbies) std::cout << hobby << '\n';
-	// to browse key-value pairs, use JsonObj (i.e. const JsonObj& obj = json2;)
-
-	Person alice = json2; // convert json to Person
-
-	alice.address = Address{"123 Main St", "New York", "10001"};
-
-	Json json = alice; // convert Person to json
-
-	std::cout << json.toString("    ", "\n") << '\n'; // use toString function to format json
-
-	return 0;
+	DocWrapper doc(json);
+	ValueWrapper value = doc;
+	Person p = value;
+	p.address = Address{"123 Main St", "New York", "10001"};
+	MutDocWrapper mutDoc;
+	MutValueWrapper root = mutDoc;
+	toJson(root, p);
+	std::string serialized = mutDoc.toString();
+	std::cout << serialized << "\n";
 }
