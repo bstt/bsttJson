@@ -1,55 +1,65 @@
-#include "./bsttJson.hpp"
+#include "bsttRapidjson.hpp"
 
 #include <iostream>
 #include <string>
 #include <vector>
 
+struct IsStudent
+{
+	bool v;
+};
+
 struct Person
 {
 	std::string name;
 	int age;
-	bool isStudent;
-	std::vector<double> scoreList;
-	Person* friend_;
+	IsStudent isStudent;
+	std::vector<std::string> hobbies;
+	Person* bestFriend = nullptr;
 };
 
-template <> inline Json toJson<Person>(const Person& person)
+using namespace rapidjson;
+
+template <> void toJson(Value& value, const IsStudent& a)
 {
-	Json json
-		= JsonObj{{"name", person.name}, {"age", person.age}, {"isStudent", person.isStudent}, {"scoreList", person.scoreList}};
-	if (person.friend_) json["friend"] = *person.friend_;
-	return json;
+	value.SetObject();
+	set(value, "v", a.v);
 }
-template <> inline Person fromJson<Person>(const Json& json)
+
+template <> void toJson(Value& value, const Person& p)
 {
-	Person person{json["name"], json["age"], json["isStudent"], json["scoreList"], nullptr};
-	// you can also use the method get (cf. below) for type checking
-	// json.get("name", person.name, "age", person.age, "isStudent", person.isStudent, "scoreList", person.scoreList);
-	if (json.hasKey("friend"))
-	{
-		person.friend_ = new Person();
-		json.get("friend", *person.friend_);
-	}
-	return person;
+	value.SetObject();
+	set(value, "name", p.name, "age", p.age, "isStudent", p.isStudent, "hobbies", p.hobbies);
+	if (p.bestFriend) set(value, "bestFriend", *p.bestFriend);
+}
+
+// fromJson specializations must be defined with p:: namespace
+
+template <> IsStudent p::fromJson(const ValueWrapper& doc) { return IsStudent{doc}; }
+
+template <> Person p::fromJson(const ValueWrapper& doc)
+{
+	Person res{doc["name"], doc["age"], doc["isStudent"], doc["hobbies"]};
+	if (doc.HasMember("bestFriend")) res.bestFriend = new Person(doc["bestFriend"]);
+	return res;
 }
 
 int main()
 {
-	Person bstt{"bstt", 20, true, {100.0, 95.3, 98.7}, nullptr};
-
-	Json json2 = Json::parse(R"({"age": 18,"isStudent": true,"name": "rui","scoreList": [99.3, 97.5, 96.8]})");
-	// browse scoreList without converting to Person
-	const JsonArr& scoreList = json2["scoreList"];
-	for (const Json& score : scoreList) std::cout << score << std::endl;
-	// to browse key-value pairs, use JsonObj (i.e. const JsonObj& obj = json2;)
-
-	Person rui = json2; // convert json to Person
-
-	rui.friend_ = &bstt;
-
-	Json json = rui; // convert Person to json
-
-	std::cout << json.toString("    ", "\n") << std::endl; // use toString function to format json
-
-	return 0;
+	std::string json = R"(
+    {
+        "name": "Alice",
+        "age": 25,
+        "isStudent": false,
+        "hobbies": ["reading", "coding"]
+    }
+    )";
+	DocWrapper doc;
+	doc.Parse(json.c_str());
+	auto p = p::fromJson<Person>(doc);
+	p.bestFriend = new Person{"Bob", 24, {true}, {"gaming", "music"}};
+	Value v;
+	toJson(v, p);
+	std::string serialized = toString(v);
+	std::cout << serialized << "\n";
 }

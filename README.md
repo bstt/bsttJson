@@ -1,8 +1,8 @@
-# bsttJson
+# bsttRapidJson
 
 # Description
 
-bsttJson is a **c++ library** that allows you to **read and write json data** with an easy way to convert to structured data.
+bsttRapidJson is a **c++ library** that allows you to **read and write json data** with an easy way to convert to structured data. It is a wrapper around [rapidjson](https://github.com/Tencent/rapidjson).
 
 # Features
 
@@ -10,127 +10,106 @@ bsttJson is a **c++ library** that allows you to **read and write json data** wi
 - convert structured data from and to json data
 - easy to use (header only)
 
-Note: This library is not intended to be the fastest or the most powerful, but the easiest to use.
-
-If you want performance take a look at the branch [rapidjson](https://github.com/bstt/bsttJson/tree/rapidjson).
+Note: This library is not intended to be the fastest or the most powerful, but the easiest to use.  
+BUT, you can expect pretty good performance with the use of rapidjson under the hood.
 
 # Installation
 
 ## Header only
 
-Include the [`bsttJson.hpp`](bsttJson.hpp) anywhere you want to use it.
+Include the [`bsttRapidjson.hpp`](bsttRapidjson.hpp) anywhere you want to use it.
+
+You will require the whole include folder of rapidjson.  
+Get it from this project [here](rapidjson) or get the latest version [here](https://github.com/Tencent/rapidjson/tree/master/include/rapidjson).
+
+You can use https://download-directory.github.io/ to download github folders.
 
 ```cpp
-#include "bsttJson.hpp"
+#include "bsttRapidjson.hpp"
 ```
-
-### Use of namespace
-
-If you want to use the namespace `bsttJson` you can define `USE_BSTT_NAMESPACE` before including the header.
-
-```cpp
-#define USE_BSTT_NAMESPACE
-#include "bsttJson.hpp"
-```
-
-### Sort the keys
-
-If you want to sort the keys of the objects alphabetically, you can define `SORT_JSON_OBJECT_KEYS` before including the header.
 
 ### Requirements
 
 c++17 or later required for compilation.  
-No external dependencies.
+No external dependencies (except rapidjson include folder).
 
 # Example
 
 Content of [example.cpp](example.cpp)
 
 ```cpp
-#include "./bsttJson.hpp"
+#include "bsttRapidjson.hpp"
 
+#include <iostream>
 #include <string>
 #include <vector>
 
-#include <iostream>
+struct IsStudent
+{
+	bool v;
+};
 
 struct Person
 {
 	std::string name;
 	int age;
-	bool isStudent;
-	std::vector<double> scoreList;
-	Person* friend_;
+	IsStudent isStudent;
+	std::vector<std::string> hobbies;
+	Person* bestFriend = nullptr;
 };
 
-template <> inline Json toJson<Person>(const Person& person)
+using namespace rapidjson;
+
+template <> void toJson(Value& value, const IsStudent& a)
 {
-	Json json
-		= JsonObj{{"name", person.name}, {"age", person.age}, {"isStudent", person.isStudent}, {"scoreList", person.scoreList}};
-	if (person.friend_) json["friend"] = *person.friend_;
-	return json;
+	value.SetObject();
+	set(value, "v", a.v);
 }
-template <> inline Person fromJson<Person>(const Json& json)
+
+template <> void toJson(Value& value, const Person& p)
 {
-	Person person{json["name"], json["age"], json["isStudent"], json["scoreList"], nullptr};
-	// you can also use the method get (cf. below) for type checking
-	// json.get("name", person.name, "age", person.age, "isStudent", person.isStudent, "scoreList", person.scoreList);
-	if (json.hasKey("friend"))
-	{
-		person.friend_ = new Person();
-		json.get("friend", *person.friend_);
-	}
-	return person;
+	value.SetObject();
+	set(value, "name", p.name, "age", p.age, "isStudent", p.isStudent, "hobbies", p.hobbies);
+	if (p.bestFriend) set(value, "bestFriend", *p.bestFriend);
+}
+
+// fromJson specializations must be defined with p:: namespace
+
+template <> IsStudent p::fromJson(const ValueWrapper& doc) { return IsStudent{doc}; }
+
+template <> Person p::fromJson(const ValueWrapper& doc)
+{
+	Person res{doc["name"], doc["age"], doc["isStudent"], doc["hobbies"]};
+	if (doc.HasMember("bestFriend")) res.bestFriend = new Person(doc["bestFriend"]);
+	return res;
 }
 
 int main()
 {
-	Person bstt{"bstt", 20, true, {100.0, 95.3, 98.7}, nullptr};
-
-	Json json2 = Json::parse(R"({"age": 18,"isStudent": true,"name": "rui","scoreList": [99.3, 97.5, 96.8]})");
-	// browse scoreList without converting to Person
-	const JsonArr& scoreList = json2["scoreList"];
-	for (const Json& score : scoreList) std::cout << score << std::endl;
-	// to browse key-value pairs, use JsonObj (i.e. const JsonObj& obj = json2;)
-
-	Person rui = json2; // convert json to Person
-
-	rui.friend_ = &bstt;
-
-	Json json = rui; // convert Person to json
-
-	std::cout << json.toString("    ", "\n") << std::endl; // use toString function to format json
-
-	return 0;
+	std::string json = R"(
+    {
+        "name": "Alice",
+        "age": 25,
+        "isStudent": false,
+        "hobbies": ["reading", "coding"]
+    }
+    )";
+	DocWrapper doc;
+	doc.Parse(json.c_str());
+	auto p = p::fromJson<Person>(doc);
+	p.bestFriend = new Person{"Bob", 24, {true}, {"gaming", "music"}};
+	Value v;
+	toJson(v, p);
+	std::string serialized = toString(v);
+	std::cout << serialized << "\n";
 }
+
 ```
 
 Output:
 
 ```
-99.3
-97.5
-96.8
-{
-    "name": "rui",
-    "age": 18,
-    "isStudent": true,
-    "scoreList": [
-        99.3,
-        97.5,
-        96.8
-    ],
-    "friend": {
-        "name": "bstt",
-        "age": 20,
-        "isStudent": true,
-        "scoreList": [
-            100,
-            95.3,
-            98.7
-        ]
-    }
-}
+{"name":"Alice","age":25,"isStudent":{"v":false},"hobbies":["reading","coding"],"bestFriend":{"name":"Bob","age":24,"isStudent":{"v":true},"hobbies":["gaming","music"]}}
 ```
 
 # Usage
@@ -138,121 +117,52 @@ Output:
 _The usage is not exhaustive._
 
 ```cpp
-// CastType should be: bool, int, int64_t, size_t, double, std::string
-#define FROM_TO_JSON_CAST(Type, CastType) // basic impl of fromJson<Type> and toJson<Type>
-#ifdef SORT_JSON_OBJECT_KEYS
-	using JsonObj = std::map<std::string, struct Json>;
-#else
-	using JsonObj = std::vector<std::pair<std::string, struct Json>>;
-#endif
-using JsonArr = std::vector<struct Json>;
-template <typename T> T fromJson(const Json&);
-template <typename T> Json toJson(const T&);
-struct Json
+template <typename T> void toJson(rapidjson::Value&, const T&); // function to implement for custom types
+template <typename T, typename... Args> void add(rapidjson::Value& json, const T& value, Args&&... args);
+
+template <typename T, typename... Args>
+void set(rapidjson::Value& json, const rapidjson::Value::StringRefType& key, const T& value, Args&&... args);
+inline std::string toString(const rapidjson::Value& json);
+
+namespace p
 {
-	enum class Type
+	template <typename T, typename U> T fromJson(const U& doc); // function to implement for custom types, keep namespace
+} // namespace p
+
+class DocWrapper
+{
+public:
+	class ValueWrapper
 	{
-		Null,
-		Bool,
-		Number,
-		String,
-		Array,
-		Object
+
+	public:
+		ValueWrapper(const rapidjson::GenericValue<rapidjson::UTF8<>>& val);
+
+		template <typename T> operator std::vector<T>() const;
+		template <typename T> operator T() const;
+
+		ValueWrapper operator[](const char* key) const;
+
+		bool HasMember(const char* key) const;
+
+		const rapidjson::GenericValue<rapidjson::UTF8<>>* val_; // has been set public for direct access if needed
 	};
 
-	template <typename T> static Json::Type typeToType(const T&);
-	static std::string typeToString(Type type);
+	operator ValueWrapper() const;
 
-	// Parsing functions
+	rapidjson::GenericDocument<rapidjson::UTF8<>>& Parse(const char* json);
 
-	static Json parse(const std::string_view& str);
-	static bool tryParse(const std::string_view& str, Json& json);
-	static bool tryParse(const std::string_view& str, Json& json, std::string& error);
-	static Json parseFile(const std::string& fileName);
-	static bool tryParseFile(const std::string& fileName, Json& json);
-	static bool tryParseFile(const std::string& fileName, Json& json, std::string& error);
+	bool HasMember(const char* key) const;
 
-	// Constructors
+	ValueWrapper operator[](const char* key) const;
 
-	Json(); // default is null
-	Json(const Json& v);
-	template <typename T> Json(const T& v);
-
-	// Converters
-
-	template <typename T> Json& operator=(const T& t);
-	template <typename T> operator T() const;
-
-	// Value accessors
-
-	template <typename T, typename... Args> void get(const std::string& key, T& value, Args&&... args) const;
-
-	template <typename T, typename... Args> void set(const std::string& key, const T& value, Args&&... args);
-
-	template <typename T, typename... Args> bool tryGet(const std::string& key, T& value, Args&&... args) const;
-
-	bool hasKey(const std::string& key) const;
-
-	// Array functions
-
-	const Json& operator[](size_t index) const { return arr[index]; }
-	Json& operator[](size_t index); // resize the array if needed
-	template <typename T> void emplace_back(const T& t);
-	void resize(size_t size);
-
-	// Object functions
-
-	const Json& operator[](const std::string& key) const;
-	Json& operator[](const std::string& key);
-
-	// Display functions
-
-	std::string toString(const std::string& tab = "", const std::string& newLine = "") const;
-	friend std::ostream& operator<<(std::ostream& os, const Json& v);
-	std::ostream& display(std::ostream& os, const std::string& tab = "", const std::string& newLine = "", size_t currentTabCount = 0) const;
-
-	// Getters
-
-	Type getType() const;
-	size_t size() const;
+	rapidjson::Document doc_; // has been set public for direct access if needed
 };
+
+using ValueWrapper = DocWrapper::ValueWrapper;
 ```
 
-**Note:** you should never manually call `fromJson` or `toJson`.
-
-## Specific usage
-
-For basic type like `unsigned char`, you can use the macro `FROM_TO_JSON_CAST` to quickly define the functions `fromJson` and `toJson`.
-
-Content of [unsigned_char_example.cpp](unsigned_char_example.cpp)
-
-```c++
-#include "./bsttJson.hpp"
-
-#include <iostream>
-#include <vector>
-
-FROM_TO_JSON_CAST(unsigned char, int)
-
-int main()
-{
-	std::vector<unsigned char> ucharList = {'h', 'e', 'l', 'l', 'o'};
-	Json json = ucharList; // DO NOT WRITE: Json json = toJson(ucharList)
-	std::cout << Json(json).toString() << std::endl;
-	// DO NOT WRITE: std::vector<unsigned char> ucharList2 = fromJson<std::vector<unsigned char>>(json);
-	std::vector<unsigned char> ucharList2 = json;
-	for (unsigned char c : ucharList2) std::cout << c;
-	std::cout << std::endl;
-	return 0;
-}
-```
-
-Output:
-
-```
-[104, 101, 108, 108, 111]
-hello
-```
+**Note:** you should never manually call `fromJson` or `toJson` within the implementation of a `fromJson` or a `toJson`.
 
 # Licence
 

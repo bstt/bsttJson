@@ -3,3 +3,4 @@
 -Wextra
 -Wpedantic
 -std=c++17
+-Wno-deprecated-declarations
