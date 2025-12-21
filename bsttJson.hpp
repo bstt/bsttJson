@@ -10,11 +10,13 @@
 #include <string_view>
 #include <vector>
 
-inline std::string to_string(const std::string& s) { return s; }
-
 #define FROM_TO_JSON(Type)                                                                                                       \
 	template <> inline Type fromJson<Type>(const Json& json) { return static_cast<Type>(json); }                                 \
 	template <> inline Json toJson<Type>(const Type& i) { return Json{i}; }
+
+#ifdef FROM_TO_JSON_CAST
+#undef FROM_TO_JSON_CAST
+#endif
 
 // CastType should be: bool, int, int64_t, size_t, double, std::string
 #define FROM_TO_JSON_CAST(Type, CastType)                                                                                        \
@@ -25,6 +27,8 @@ inline std::string to_string(const std::string& s) { return s; }
 namespace bstt
 {
 #endif
+	inline std::string to_string(const std::string& s) { return s; }
+
 	static constexpr size_t MAX_JSON_DEPTH = 1024;
 
 	static const std::string& getTab(const std::string& tab, size_t tabCount)
@@ -174,9 +178,6 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 				break;
 			case Type::Object:
 				new (&obj) JsonObj(std::move(v.obj));
-#ifndef SORT_JSON_OBJECT_KEYS
-				this->objKeyToIndexMap = std::move(v.objKeyToIndexMap);
-#endif
 				break;
 			case Type::Array:
 				new (&arr) JsonArr(std::move(v.arr));
@@ -275,9 +276,6 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 		{
 			type = Type::Object;
 			new (&obj) JsonObj(obj_);
-#ifndef SORT_JSON_OBJECT_KEYS
-			for (long long i = 0; i < static_cast<long long>(obj.size()); ++i) objKeyToIndexMap[obj[i].first] = i;
-#endif
 			return *this;
 		}
 		Json& operator=(const JsonArr& arr_)
@@ -333,9 +331,6 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 				break;
 			case Type::Object:
 				new (&obj) JsonObj(std::move(rhs.obj));
-#ifndef SORT_JSON_OBJECT_KEYS
-				this->objKeyToIndexMap = std::move(rhs.objKeyToIndexMap);
-#endif
 				break;
 			case Type::Array:
 				new (&arr) JsonArr(std::move(rhs.arr));
@@ -419,24 +414,43 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 #ifdef SORT_JSON_OBJECT_KEYS
 			return obj.find(key);
 #else
-		auto it = objKeyToIndexMap.find(key);
-		if (it != objKeyToIndexMap.end()) return obj.begin() + it->second;
+		// search most efficient when keys are accessed in order
+		for (size_t i = 0; i < obj.size(); ++i)
+		{
+			auto ind = (findIndex + i) % obj.size();
+			if (obj[ind].first == key)
+			{
+				findIndex = ind + 1;
+				return obj.begin() + static_cast<long long>(ind);
+			}
+		}
 		return obj.end();
 #endif
 		}
 
 		JsonObj::const_iterator objFind(const std::string& key) const
 		{
-#ifdef SORT_JSON_OBJECT_KEYS
-			return obj.find(key);
-#else
-		auto it = objKeyToIndexMap.find(key);
-		if (it != objKeyToIndexMap.end()) return obj.begin() + it->second;
-		return obj.end();
-#endif
+			// const_cast required to update findIndex
+			auto* t = const_cast<Json*>(this);
+			return t->objFind(key);
 		}
 
 	public:
+		bool hasKey(const std::string& key) const
+		{
+			auto* t = const_cast<Json*>(this);
+			auto it = objFind(key);
+			if (it != obj.end())
+			{
+#ifndef SORT_JSON_OBJECT_KEYS
+				// decrement findIndex since next search will probably be the same key
+				t->findIndex--;
+#endif
+				return true;
+			}
+			return false;
+		}
+
 		template <typename T> bool tryGet(const std::string& key, T& value) const
 		{
 			auto it = objFind(key);
@@ -517,7 +531,6 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 		auto it = objFind(key);
 		if (it == obj.end())
 		{
-			objKeyToIndexMap[key] = static_cast<long long>(obj.size());
 			obj.emplace_back(key, Json());
 			return obj.back().second;
 		}
@@ -587,7 +600,7 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 		};
 
 #ifndef SORT_JSON_OBJECT_KEYS
-		std::map<std::string, long long> objKeyToIndexMap;
+		size_t findIndex = 0;
 #endif
 
 		void get() const {}

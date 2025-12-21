@@ -25,7 +25,11 @@ template <> inline Person fromJson<Person>(const Json& json)
 	Person person{json["name"], json["age"], json["isStudent"], json["scoreList"], nullptr};
 	// you can also use the method get (cf. below) for type checking
 	// json.get("name", person.name, "age", person.age, "isStudent", person.isStudent, "scoreList", person.scoreList);
-	json.tryGet("friend", *person.friend_);
+	if (json.hasKey("friend"))
+	{
+		person.friend_ = new Person();
+		json.get("friend", *person.friend_);
+	}
 	return person;
 }
 
