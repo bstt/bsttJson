@@ -183,6 +183,12 @@ struct Json
 	template <typename T> Json& operator=(const T& t);
 	template <typename T> operator T() const;
 
+	operator bool&();
+	operator double&();
+	operator std::string&();
+	operator JsonObj&();
+	operator JsonArr&();
+
 	// Value accessors
 
 	template <typename T, typename... Args> void get(const std::string& key, T& value, Args&&... args) const;
@@ -195,7 +201,9 @@ struct Json
 
 	// Array functions
 
-	const Json& operator[](size_t index) const { return arr[index]; }
+	const Json& back();
+	Json& back();
+	const Json& operator[](size_t index) const;
 	Json& operator[](size_t index); // resize the array if needed
 	template <typename T> void emplace_back(const T& t);
 	void resize(size_t size);

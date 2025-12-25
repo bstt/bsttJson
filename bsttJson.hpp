@@ -17,7 +17,6 @@
 #ifdef FROM_TO_JSON_CAST
 #undef FROM_TO_JSON_CAST
 #endif
-
 // CastType should be: bool, int, int64_t, size_t, double, std::string
 #define FROM_TO_JSON_CAST(Type, CastType)                                                                                        \
 	template <> inline Type fromJson<Type>(const Json& json) { return static_cast<Type>(static_cast<CastType>(json)); }          \
@@ -340,17 +339,42 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 			return *this;
 		}
 
-		// Conversions
+		// Converters
 
-		operator const bool&() const { return b; }
+		operator bool() const { return b; }
 		operator int() const { return static_cast<int>(num); }
 		operator int64_t() const { return static_cast<int64_t>(num); }
 		operator size_t() const { return static_cast<size_t>(num); }
 		operator const double&() const { return num; }
-		operator std::string() const { return str; }
+		operator const std::string&() const { return str; }
 		operator const char*() const { return str.c_str(); }
 		operator const JsonObj&() const { return obj; }
 		operator const JsonArr&() const { return arr; }
+		operator bool&()
+		{
+			if (type != Type::Bool) *this = false;
+			return b;
+		}
+		operator double&()
+		{
+			if (type != Type::Number) *this = 0.0;
+			return num;
+		}
+		operator std::string&()
+		{
+			if (type != Type::String) *this = "";
+			return str;
+		}
+		operator JsonObj&()
+		{
+			if (type != Type::Object) *this = JsonObj{};
+			return obj;
+		}
+		operator JsonArr&()
+		{
+			if (type != Type::Array) *this = JsonArr{};
+			return arr;
+		}
 		template <typename T> operator T() const { return fromJson<T>(*this); }
 		template <typename T, typename U> operator std::map<T, U>() const
 		{
@@ -438,11 +462,11 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 	public:
 		bool hasKey(const std::string& key) const
 		{
-			auto* t = const_cast<Json*>(this);
 			auto it = objFind(key);
 			if (it != obj.end())
 			{
 #ifndef SORT_JSON_OBJECT_KEYS
+				auto* t = const_cast<Json*>(this);
 				// decrement findIndex since next search will probably be the same key
 				t->findIndex--;
 #endif
@@ -495,6 +519,8 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 
 		// Array functions
 
+		const Json& back() const { return arr.back(); }
+		Json& back() { return arr.back(); }
 		const Json& operator[](size_t index) const { return arr[index]; }
 		// resize the array if needed
 		Json& operator[](size_t index)
@@ -651,7 +677,8 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 	FROM_TO_JSON(int64_t)
 	FROM_TO_JSON(size_t)
 	FROM_TO_JSON(double)
-	FROM_TO_JSON(std::string)
+	template <> inline std::string fromJson<std::string>(const Json& json) { return static_cast<const std::string&>(json); }
+	template <> inline Json toJson<std::string>(const std::string& i) { return Json{i}; }
 	FROM_TO_JSON_CAST(char, int)
 	FROM_TO_JSON_CAST(short, int)
 
@@ -774,9 +801,7 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 				parseString(str, pos, key);
 				skipSpace(str, pos);
 				parseChar(str, pos, ':');
-				Json value;
-				parseValue(str, pos, value, depth + 1);
-				jsonValue[key] = value;
+				parseValue(str, pos, jsonValue[key], depth + 1);
 				if (str[pos] == '}') break;
 				parseChar(str, pos, ',');
 				skipSpace(str, pos);
@@ -787,13 +812,11 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 
 		inline void parseArray(const std::string_view& str, size_t& pos, Json& jsonValue, size_t depth)
 		{
-			size_t i = 0;
-			if (str[pos] == ']') jsonValue = JsonArr();
+			jsonValue = JsonArr();
 			while (pos < str.size() && str[pos] != ']')
 			{
-				Json value;
-				parseValue(str, pos, value, depth + 1);
-				jsonValue[i++] = value;
+				jsonValue.emplace_back();
+				parseValue(str, pos, jsonValue.back(), depth + 1);
 				if (str[pos] == ']') break;
 				parseChar(str, pos, ',');
 				skipSpace(str, pos);
@@ -811,8 +834,6 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 		if (depth == MAX_JSON_DEPTH) throw std::runtime_error("Exceeded maximum depth of " + std::to_string(MAX_JSON_DEPTH));
 
 		skipSpace(str, pos);
-		std::string s;
-		double d = 0.0;
 		switch (str[pos])
 		{
 		case 'n':
@@ -838,8 +859,7 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 			break;
 		case '"':
 			pos++;
-			parseString(str, pos, s);
-			jsonValue = s;
+			parseString(str, pos, jsonValue);
 			break;
 		case '[':
 			pos++;
@@ -850,8 +870,7 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 			parseObject(str, pos, jsonValue, depth);
 			break;
 		default:
-			parseNumber(str, pos, d);
-			jsonValue = d;
+			parseNumber(str, pos, jsonValue);
 			break;
 		}
 		skipSpace(str, pos);
