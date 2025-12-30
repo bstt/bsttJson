@@ -4,6 +4,7 @@
 #include <charconv>
 #include <cstdint>
 #include <fstream>
+#include <iostream>
 #include <map>
 #include <sstream>
 #include <string>
@@ -418,7 +419,7 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 		template <typename T, typename... Args> void get(const std::string& key, T& value, Args&&... args) const
 		{
 			get(key, value);
-			get(std::forward(args)...);
+			get(std::forward<Args>(args)...);
 		}
 
 		// Set
@@ -427,7 +428,7 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 		template <typename T, typename... Args> void set(const std::string& key, const T& value, Args&&... args)
 		{
 			set(key, value);
-			set(std::forward(args)...);
+			set(std::forward<Args>(args)...);
 		}
 
 		// Try get
@@ -522,6 +523,7 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 		const Json& back() const { return arr.back(); }
 		Json& back() { return arr.back(); }
 		const Json& operator[](size_t index) const { return arr[index]; }
+		const Json& operator[](int index) const { return arr[index]; }
 		// resize the array if needed
 		Json& operator[](size_t index)
 		{
@@ -529,10 +531,11 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 			if (arr.size() <= index) arr.resize(index + 1);
 			return arr[index];
 		}
+		Json& operator[](int index) { return (*this)[static_cast<size_t>(index)]; }
 		template <typename... Args> void emplace_back(Args&&... args)
 		{
 			if (type != Type::Array) *this = JsonArr();
-			arr.emplace_back(std::forward(args)...);
+			arr.emplace_back(std::forward<Args>(args)...);
 		}
 
 		void resize(size_t size) { arr.resize(size); }
@@ -542,7 +545,14 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 		const Json& operator[](const std::string& key) const
 		{
 			auto it = objFind(key);
-			if (it == obj.end()) throw std::runtime_error("Key not found: '" + key + "'");
+			if (it == obj.end())
+			{
+#ifdef BSTT_JSON_DEBUG
+				std::cerr << "Key not found: '" << key << "'" << std::endl;
+				std::cerr << this->toString() << std::endl;
+#endif
+				throw std::runtime_error("Key not found: '" + key + "'");
+			}
 			return it->second;
 		}
 		const Json& operator[](const char* key) const { return (*this)[std::string(key)]; }
