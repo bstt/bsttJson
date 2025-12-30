@@ -284,6 +284,11 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 			new (&arr) JsonArr(arr_);
 			return *this;
 		}
+		Json& operator=(const Json::Type& type)
+		{
+			this->type = type;
+			return *this;
+		}
 		template <typename T> Json& operator=(const T& t)
 		{
 			*this = toJson<T>(t);
@@ -344,8 +349,11 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 
 		operator bool() const { return b; }
 		operator int() const { return static_cast<int>(num); }
+		operator int() { return static_cast<int>(num); }
 		operator int64_t() const { return static_cast<int64_t>(num); }
+		operator int64_t() { return static_cast<int64_t>(num); }
 		operator size_t() const { return static_cast<size_t>(num); }
+		operator size_t() { return static_cast<size_t>(num); }
 		operator const double&() const { return num; }
 		operator const std::string&() const { return str; }
 		operator const char*() const { return str.c_str(); }
@@ -455,9 +463,22 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 
 		JsonObj::const_iterator objFind(const std::string& key) const
 		{
-			// const_cast required to update findIndex
-			auto* t = const_cast<Json*>(this);
-			return t->objFind(key);
+#ifdef SORT_JSON_OBJECT_KEYS
+			return obj.find(key);
+#else
+		// search most efficient when keys are accessed in order
+		// findIndex is mutable, so it can be modified in const methods
+		for (size_t i = 0; i < obj.size(); ++i)
+		{
+			auto ind = (findIndex + i) % obj.size();
+			if (obj[ind].first == key)
+			{
+				findIndex = ind + 1;
+				return obj.begin() + static_cast<long long>(ind);
+			}
+		}
+		return obj.end();
+#endif
 		}
 
 	public:
@@ -467,9 +488,9 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 			if (it != obj.end())
 			{
 #ifndef SORT_JSON_OBJECT_KEYS
-				auto* t = const_cast<Json*>(this);
 				// decrement findIndex since next search will probably be the same key
-				t->findIndex--;
+				// findIndex is mutable, so it can be modified in const methods
+				findIndex--;
 #endif
 				return true;
 			}
@@ -636,7 +657,7 @@ using JsonObj = std::vector<std::pair<std::string, struct Json>>;
 		};
 
 #ifndef SORT_JSON_OBJECT_KEYS
-		size_t findIndex = 0;
+		mutable size_t findIndex = 0;
 #endif
 
 		void get() const {}

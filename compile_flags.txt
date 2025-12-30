@@ -3,3 +3,4 @@
 -Wextra
 -Wpedantic
 -std=c++17
+-Wno-c2y-extensions
