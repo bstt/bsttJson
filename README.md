@@ -181,12 +181,14 @@ template <> MyType fromJson(const ValueWrapper& doc)
 // Reading JSON
 class DocWrapper
 {
+public:
     DocWrapper(const std::string& data);  // Parse JSON from string
     operator ValueWrapper() const;
     std::string toString() const;
 
     class ValueWrapper
     {
+    public:
         // Conversion operators
         operator int() const;
         operator int64_t() const;
@@ -212,6 +214,7 @@ class DocWrapper
 // Writing JSON
 class MutDocWrapper
 {
+public:
     MutDocWrapper();  // Create empty document
     operator MutValueWrapper() const;
     std::string toString() const;

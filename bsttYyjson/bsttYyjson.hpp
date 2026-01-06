@@ -170,6 +170,8 @@ namespace bstt
 				for (const auto& value : valueList) addNoCheck(value);
 			}
 
+			yyjson_mut_val* val_ = nullptr;	   // Direct access to underlying value
+			yyjson_mut_doc* mutDoc_ = nullptr; // Direct access to underlying document
 		private:
 			yyjson_mut_val* createValue(int value) { return yyjson_mut_int(mutDoc_, value); }
 			yyjson_mut_val* createValue(int64_t value) { return yyjson_mut_sint(mutDoc_, value); }
@@ -195,9 +197,6 @@ namespace bstt
 				toJson(wrapper, value);
 				return obj;
 			}
-
-			yyjson_mut_val* val_ = nullptr;	   // Direct access to underlying value
-			yyjson_mut_doc* mutDoc_ = nullptr; // Direct access to underlying document
 		};
 
 		MutDocWrapper() : mutDoc(yyjson_mut_doc_new(nullptr)) // Create empty document
