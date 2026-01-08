@@ -7649,7 +7649,7 @@ static_inline void f32_bin_to_dec(u32 sig_raw, u32 exp_raw,
     w1_inside = (upper >= 4 * s + 4);
     mid = 4 * s + 2;
     round_up = (vb > mid) || (vb == mid && (s & 1) != 0);
-    *sig_dec = s + ((u1_inside != w1_inside) ? w1_inside : round_up);
+    *sig_dec = s + static_cast<u32>((u1_inside != w1_inside) ? w1_inside : round_up);
     *exp_dec = k;
 }
 
@@ -7760,7 +7760,7 @@ static_inline void f64_bin_to_dec(u64 sig_raw, u32 exp_raw,
     w1_inside = (upper >= 4 * s + 4);
     mid = 4 * s + 2;
     round_up = (vb > mid) || (vb == mid && (s & 1) != 0);
-    *sig_dec = s + ((u1_inside != w1_inside) ? w1_inside : round_up);
+    *sig_dec = s + static_cast<u32>((u1_inside != w1_inside) ? w1_inside : round_up);
     *exp_dec = k;
 }
 

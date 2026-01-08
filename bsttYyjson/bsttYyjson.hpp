@@ -52,7 +52,7 @@ namespace bstt
 			// Access operators
 			ValueWrapper operator[](const char* key) const { return {yyjson_obj_get(val_, key), doc_}; }
 			ValueWrapper operator[](size_t index) const { return {yyjson_arr_get(val_, index), doc_}; }
-			ValueWrapper operator[](int index) const { return {yyjson_arr_get(val_, index), doc_}; }
+			ValueWrapper operator[](int index) const { return {yyjson_arr_get(val_, static_cast<size_t>(index)), doc_}; }
 
 			bool hasKey(const char* key) const { return yyjson_obj_get(val_, key) != nullptr; }
 
